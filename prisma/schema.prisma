@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ActivoEstado {
+  DISPONIBLE
+  PRESTADO
+  MANTENIMIENTO
+  RETIRADO
+}
+
+enum PrestamoEstado {
+  PENDIENTE
+  ACTIVO
+  DEVUELTO
+  CANCELADO
+}
+
+enum MovimientoTipo {
+  CREACION
+  MODIFICACION
+  PRESTAMO
+  DEVOLUCION
+  ASIGNACION
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id          Int          @id @default(autoincrement())
+  name        String
+  email       String       @unique
+  password    String
+  role        Role?        @relation(fields: [roleId], references: [id])
+  roleId      Int?
+  prestamos   Prestamo[]
+  movimientos Movimiento[]
+  asignaciones Asignacion[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Activo {
+  id           Int           @id @default(autoincrement())
+  barcode      String?       @unique
+  name         String
+  descripcion  String?
+  estado       ActivoEstado  @default(DISPONIBLE)
+  ubicacion    String?
+  asignaciones Asignacion[]
+  prestamos    PrestamoDetalle[]
+  movimientos  Movimiento[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
+}
+
+model Consumible {
+  id          Int           @id @default(autoincrement())
+  name        String
+  categoria   String?
+  stock       Int           @default(0)
+  stockMinimo Int           @default(5)
+  prestamos   PrestamoDetalle[]
+  movimientos Movimiento[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now()) @updatedAt
+}
+
+model Asignacion {
+  id         Int      @id @default(autoincrement())
+  activo     Activo   @relation(fields: [activoId], references: [id])
+  activoId   Int
+  usuario    User     @relation(fields: [usuarioId], references: [id])
+  usuarioId  Int
+  area       String
+  desde      DateTime
+  hasta      DateTime?
+  notas      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+}
+
+model Prestamo {
+  id             Int               @id @default(autoincrement())
+  usuario        User              @relation(fields: [usuarioId], references: [id])
+  usuarioId      Int
+  estado         PrestamoEstado    @default(PENDIENTE)
+  fechaSalida    DateTime          @default(now())
+  fechaDevolucion DateTime?
+  notas          String?
+  detalles       PrestamoDetalle[]
+  movimientos    Movimiento[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @default(now()) @updatedAt
+}
+
+model PrestamoDetalle {
+  id           Int         @id @default(autoincrement())
+  prestamo     Prestamo    @relation(fields: [prestamoId], references: [id])
+  prestamoId   Int
+  activo       Activo?     @relation(fields: [activoId], references: [id])
+  activoId     Int?
+  consumible   Consumible? @relation(fields: [consumibleId], references: [id])
+  consumibleId Int?
+  cantidad     Int         @default(1)
+}
+
+model Movimiento {
+  id           Int            @id @default(autoincrement())
+  tipo         MovimientoTipo
+  entity       String
+  entityId     Int
+  descripcion  String?
+  creadoPor    User?          @relation(fields: [creadoPorId], references: [id])
+  creadoPorId  Int?
+  activo       Activo?        @relation(fields: [activoId], references: [id])
+  activoId     Int?
+  consumible   Consumible?    @relation(fields: [consumibleId], references: [id])
+  consumibleId Int?
+  prestamo     Prestamo?      @relation(fields: [prestamoId], references: [id])
+  prestamoId   Int?
+  createdAt    DateTime       @default(now())
+}
