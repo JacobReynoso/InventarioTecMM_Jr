@@ -111,34 +111,25 @@ export default function ModalActivo({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
-      <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-2xl shadow-slate-900/10">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold">{mode === "edit" ? "Editar activo" : "Agregar nuevo activo"}</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              {mode === "edit"
-                ? "Actualiza el activo con su información."
-                : "Registra el activo con su código de barras y ubicación."}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-2xl bg-slate-200 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-300"
-          >
-            Cerrar
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[1px]">
+      <div className="mx-4 w-full max-w-2xl rounded-lg bg-white text-slate-900 shadow-lg">
+        <div className="border-b border-slate-200 px-6 py-4 bg-white">
+          <h2 className="text-xl font-bold text-slate-900">{mode === "edit" ? "Editar activo" : "Nuevo Activo"}</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            {mode === "edit"
+              ? "Actualiza el activo con su información."
+              : "Registra el activo con su código de barras y ubicación."}
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-8 grid gap-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <label className="grid gap-2 text-sm font-medium text-slate-800">
             Nombre del activo
             <input
               name="name"
               value={form.name}
               onChange={handleChange}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
               placeholder="Laptop, proyector, mueble"
               required
             />
@@ -150,7 +141,7 @@ export default function ModalActivo({
               name="barcode"
               value={form.barcode}
               onChange={handleChange}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
               placeholder="123456789012"
             />
           </label>
@@ -161,7 +152,7 @@ export default function ModalActivo({
               name="ubicacion"
               value={form.ubicacion}
               onChange={handleChange}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
               placeholder="Aula 101"
             />
           </label>
@@ -172,7 +163,7 @@ export default function ModalActivo({
               name="estado"
               value={form.estado}
               onChange={handleChange}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
             >
               <option value="DISPONIBLE">Disponible</option>
               <option value="PRESTADO">Prestado</option>
@@ -188,20 +179,29 @@ export default function ModalActivo({
               value={form.descripcion}
               onChange={handleChange}
               rows={3}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
               placeholder="Detalles adicionales"
             />
           </label>
 
           {error ? <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="inline-flex justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-          >
-            {isSubmitting ? "Guardando..." : mode === "edit" ? "Actualizar activo" : "Registrar activo"}
-          </button>
+          <div className="flex gap-3 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+            >
+              {isSubmitting ? "Guardando..." : mode === "edit" ? "Actualizar activo" : "Registrar activo"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

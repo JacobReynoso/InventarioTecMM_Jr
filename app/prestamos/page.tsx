@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { MoreVertical } from "lucide-react";
 import { Navigation } from "@/app/components/Navigation";
 import ModalPrestamo from "@/app/components/ModalPrestamo";
 import { getTokenRoleFromToken } from "@/lib/session";
@@ -67,7 +68,12 @@ export default function PrestamosPage() {
   });
   const [estado, setEstado] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingPrestamo, setEditingPrestamo] = useState<Prestamo | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const canManageActions = currentRole === "admin" || currentRole === "editor";
 
   const fetchPrestamos = async (page = 1, estadoFilter = "") => {
     try {
@@ -129,10 +135,45 @@ export default function PrestamosPage() {
     fetchPrestamos(1, value);
   };
 
-  const handleCreated = () => {
+  const handleSaved = () => {
     setLoading(true);
     fetchPrestamos(pagination.page, estado);
     setModalOpen(false);
+    setEditingPrestamo(null);
+  };
+
+  function handleEditClick(prestamo: Prestamo) {
+    setMenuOpenId(null);
+    setMenuPosition(null);
+    setEditingPrestamo(prestamo);
+    setModalOpen(true);
+  }
+
+  async function handleDeleteClick(prestamoId: number) {
+    setMenuOpenId(null);
+    setMenuPosition(null);
+
+    const confirmed = window.confirm("¿Eliminar este préstamo?");
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const token = window.localStorage.getItem("inventario_token");
+      const response = await fetch(`/api/prestamos?id=${prestamoId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo eliminar el préstamo.");
+      }
+
+      setLoading(true);
+      fetchPrestamos(pagination.page, estado);
+    } catch (error) {
+      console.error("Error deleting prestamo:", error);
+    }
   };
 
   const getEstadoBadge = (est: string) => {
@@ -216,6 +257,9 @@ export default function PrestamosPage() {
                       <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
                         Estado
                       </th>
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700">
+                        Opciones
+                      </th>
                     </tr>
                   </thead>
                   <tbody divide-y divide-slate-200>
@@ -270,6 +314,66 @@ export default function PrestamosPage() {
                               {prestamo.estado}
                             </span>
                           </td>
+                          <td className="px-6 py-4 text-right">
+                            {canManageActions ? (
+                              <div className="relative inline-flex">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    const targetRect = event.currentTarget.getBoundingClientRect();
+                                    setMenuOpenId((current) => {
+                                      const nextMenuId = current === prestamo.id ? null : prestamo.id;
+                                      setMenuPosition(
+                                        nextMenuId === null
+                                          ? null
+                                          : {
+                                              top: targetRect.bottom + 8,
+                                              left: targetRect.right - 144,
+                                            }
+                                      );
+                                      return nextMenuId;
+                                    });
+                                  }}
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                                  aria-label="Abrir opciones"
+                                >
+                                  <MoreVertical className="h-5 w-5" />
+                                </button>
+                                {menuOpenId === prestamo.id ? (
+                                  <div
+                                    className="fixed z-50 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                                    style={menuPosition ? { top: menuPosition.top, left: menuPosition.left } : undefined}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditClick(prestamo)}
+                                      className="block w-full px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                                    >
+                                      Editar
+                                    </button>
+                                    {currentRole === "admin" ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteClick(prestamo.id)}
+                                        className="block w-full px-4 py-3 text-left text-sm text-rose-600 transition hover:bg-rose-50"
+                                      >
+                                        Eliminar
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                aria-disabled="true"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 opacity-40 transition-none cursor-not-allowed"
+                              >
+                                <MoreVertical className="h-5 w-5" />
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -314,9 +418,15 @@ export default function PrestamosPage() {
 
       {/* Modal */}
       <ModalPrestamo
+        key={`${modalOpen ? "open" : "closed"}-${editingPrestamo?.id ?? "new"}`}
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onCreated={handleCreated}
+        onClose={() => {
+          setModalOpen(false);
+          setEditingPrestamo(null);
+        }}
+        onSaved={handleSaved}
+        initialPrestamo={editingPrestamo}
+        mode={editingPrestamo ? "edit" : "create"}
       />
     </>
   );

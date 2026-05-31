@@ -184,18 +184,18 @@ export default function ActivosPage() {
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
               >
-                Nuevo activo
+                + Nuevo Activo
               </button>
             ) : (
               <button
                 type="button"
                 disabled
                 aria-disabled="true"
-                className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white opacity-50 transition-none"
+                className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white opacity-50 transition-none"
               >
-                Nuevo activo
+                + Nuevo Activo
               </button>
             )}
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { MoreVertical } from "lucide-react";
 import { Navigation } from "@/app/components/Navigation";
 import ModalConsumible from "@/app/components/ModalConsumible";
 import { getTokenRoleFromToken } from "@/lib/session";
@@ -38,8 +39,13 @@ export default function ConsumiblesPage() {
   });
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingConsumible, setEditingConsumible] = useState<Consumible | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const canManageActions = currentRole === "admin" || currentRole === "editor";
 
   const fallbackPagination = (page = 1): PaginationInfo => ({
     page,
@@ -131,11 +137,46 @@ export default function ConsumiblesPage() {
     fetchConsumibles(1, value);
   };
 
-  const handleCreated = () => {
+  const handleSaved = () => {
     setLoading(true);
     setErrorMessage(null);
     fetchConsumibles(pagination.page, search);
     setModalOpen(false);
+    setEditingConsumible(null);
+  };
+
+  function handleEditClick(consumible: Consumible) {
+    setMenuOpenId(null);
+    setMenuPosition(null);
+    setEditingConsumible(consumible);
+    setModalOpen(true);
+  }
+
+  async function handleDeleteClick(consumibleId: number) {
+    setMenuOpenId(null);
+    setMenuPosition(null);
+
+    const confirmed = window.confirm("¿Eliminar este consumible?");
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const token = window.localStorage.getItem("inventario_token");
+      const response = await fetch(`/api/consumibles?id=${consumibleId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo eliminar el consumible.");
+      }
+
+      setLoading(true);
+      fetchConsumibles(pagination.page, search);
+    } catch {
+      setErrorMessage("No se pudo eliminar el consumible.");
+    }
   };
 
   const getStockColor = (stock: number, minimo: number) => {
@@ -220,6 +261,9 @@ export default function ConsumiblesPage() {
                       <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
                         Estado
                       </th>
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700">
+                        Opciones
+                      </th>
                     </tr>
                   </thead>
                   <tbody divide-y divide-slate-200>
@@ -256,6 +300,66 @@ export default function ConsumiblesPage() {
                             <span className="inline-block bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-semibold">
                               Normal
                             </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {canManageActions ? (
+                            <div className="relative inline-flex">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  const targetRect = event.currentTarget.getBoundingClientRect();
+                                  setMenuOpenId((current) => {
+                                    const nextMenuId = current === consumible.id ? null : consumible.id;
+                                    setMenuPosition(
+                                      nextMenuId === null
+                                        ? null
+                                        : {
+                                            top: targetRect.bottom + 8,
+                                            left: targetRect.right - 144,
+                                          }
+                                    );
+                                    return nextMenuId;
+                                  });
+                                }}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                                aria-label="Abrir opciones"
+                              >
+                                <MoreVertical className="h-5 w-5" />
+                              </button>
+                              {menuOpenId === consumible.id ? (
+                                <div
+                                  className="fixed z-50 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                                  style={menuPosition ? { top: menuPosition.top, left: menuPosition.left } : undefined}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditClick(consumible)}
+                                    className="block w-full px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                                  >
+                                    Editar
+                                  </button>
+                                  {currentRole === "admin" ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteClick(consumible.id)}
+                                      className="block w-full px-4 py-3 text-left text-sm text-rose-600 transition hover:bg-rose-50"
+                                    >
+                                      Eliminar
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              aria-disabled="true"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 opacity-40 transition-none cursor-not-allowed"
+                            >
+                              <MoreVertical className="h-5 w-5" />
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -302,7 +406,17 @@ export default function ConsumiblesPage() {
       </div>
 
       {/* Modal */}
-      <ModalConsumible open={modalOpen} onClose={() => setModalOpen(false)} onCreated={handleCreated} />
+      <ModalConsumible
+        key={`${modalOpen ? "open" : "closed"}-${editingConsumible?.id ?? "new"}`}
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setEditingConsumible(null);
+        }}
+        onSaved={handleSaved}
+        initialConsumible={editingConsumible}
+        mode={editingConsumible ? "edit" : "create"}
+      />
     </>
   );
 }

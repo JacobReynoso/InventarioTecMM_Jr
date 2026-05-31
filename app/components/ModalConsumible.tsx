@@ -2,23 +2,56 @@
 
 import React, { useState } from "react";
 
+type ConsumibleFormData = {
+  id?: number;
+  name: string;
+  categoria: string;
+  stock: number;
+  stockMinimo: number;
+};
+
+type ConsumibleSeed = Partial<ConsumibleFormData> | null | undefined;
+
 interface ModalConsumibleProps {
   open: boolean;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: (consumible: {
+    id: number;
+    name: string;
+    categoria?: string | null;
+    stock: number;
+    stockMinimo: number;
+  }) => void;
+  initialConsumible?: ConsumibleSeed;
+  mode?: "create" | "edit";
+}
+
+const initialData: ConsumibleFormData = {
+  name: "",
+  categoria: "",
+  stock: 0,
+  stockMinimo: 5,
+};
+
+function buildInitialForm(initialConsumible: ConsumibleSeed): ConsumibleFormData {
+  return {
+    ...initialData,
+    id: initialConsumible?.id,
+    name: initialConsumible?.name ?? "",
+    categoria: initialConsumible?.categoria ?? "",
+    stock: Number(initialConsumible?.stock ?? 0),
+    stockMinimo: Number(initialConsumible?.stockMinimo ?? 5),
+  };
 }
 
 export default function ModalConsumible({
   open,
   onClose,
-  onCreated,
+  onSaved,
+  initialConsumible,
+  mode = "create",
 }: ModalConsumibleProps) {
-  const [formData, setFormData] = useState({
-    name: "",
-    categoria: "",
-    stock: 0,
-    stockMinimo: 5,
-  });
+  const [formData, setFormData] = useState<ConsumibleFormData>(() => buildInitialForm(initialConsumible));
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -47,7 +80,7 @@ export default function ModalConsumible({
     try {
       const token = window.localStorage.getItem("inventario_token");
       const response = await fetch("/api/consumibles", {
-        method: "POST",
+        method: mode === "edit" ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -57,16 +90,13 @@ export default function ModalConsumible({
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Error al crear el consumible");
+        throw new Error(data.error || (mode === "edit" ? "Error al actualizar el consumible" : "Error al crear el consumible"));
       }
 
-      setFormData({
-        name: "",
-        categoria: "",
-        stock: 0,
-        stockMinimo: 5,
-      });
-      onCreated();
+      const data = await response.json();
+
+      onSaved(data.consumible ?? data);
+      setFormData(initialData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
@@ -77,10 +107,10 @@ export default function ModalConsumible({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-      <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-xl font-bold text-slate-900">Nuevo Consumible</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[1px]">
+      <div className="mx-4 w-full max-w-md rounded-lg bg-white text-slate-900 shadow-lg">
+        <div className="border-b border-slate-200 px-6 py-4 bg-white">
+          <h2 className="text-xl font-bold text-slate-900">{mode === "edit" ? "Editar Consumible" : "Nuevo Consumible"}</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -99,7 +129,7 @@ export default function ModalConsumible({
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
               placeholder="Ej: Tinta negra"
             />
           </div>
@@ -113,7 +143,7 @@ export default function ModalConsumible({
               name="categoria"
               value={formData.categoria}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
               placeholder="Ej: Suministros"
             />
           </div>
@@ -128,7 +158,7 @@ export default function ModalConsumible({
               value={formData.stock}
               onChange={handleChange}
               min="0"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
             />
           </div>
 
@@ -142,7 +172,7 @@ export default function ModalConsumible({
               value={formData.stockMinimo}
               onChange={handleChange}
               min="1"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
             />
           </div>
 
@@ -159,7 +189,7 @@ export default function ModalConsumible({
               disabled={loading}
               className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
             >
-              {loading ? "Creando..." : "Crear"}
+              {loading ? "Guardando..." : mode === "edit" ? "Actualizar" : "Crear"}
             </button>
           </div>
         </form>

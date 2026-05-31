@@ -29,28 +29,79 @@ interface PrestamoItem {
   name: string;
 }
 
+interface InitialPrestamo {
+  id?: number;
+  usuarioId: number;
+  estado?: "PENDIENTE" | "ACTIVO" | "DEVUELTO" | "CANCELADO";
+  fechaSalida: string;
+  fechaDevolucion?: string | null;
+  notas?: string | null;
+  detalles: {
+    activo?: { id: number; name: string } | null;
+    consumible?: { id: number; name: string } | null;
+    cantidad: number;
+  }[];
+}
+
 interface ModalPrestamoProps {
   open: boolean;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: (prestamo: { id: number }) => void;
+  initialPrestamo?: InitialPrestamo | null;
+  mode?: "create" | "edit";
 }
 
 export default function ModalPrestamo({
   open,
   onClose,
-  onCreated,
+  onSaved,
+  initialPrestamo,
+  mode = "create",
 }: ModalPrestamoProps) {
+  const initialItems: PrestamoItem[] = (initialPrestamo?.detalles || [])
+    .map((detalle) => {
+      if (detalle.activo) {
+        return {
+          type: "activo" as const,
+          id: detalle.activo.id,
+          cantidad: detalle.cantidad,
+          name: detalle.activo.name,
+        };
+      }
+
+      if (detalle.consumible) {
+        return {
+          type: "consumible" as const,
+          id: detalle.consumible.id,
+          cantidad: detalle.cantidad,
+          name: detalle.consumible.name,
+        };
+      }
+
+      return null;
+    })
+    .filter((value): value is PrestamoItem => value !== null);
+
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [activos, setActivos] = useState<Activo[]>([]);
   const [consumibles, setConsumibles] = useState<Consumible[]>([]);
 
-  const [usuarioId, setUsuarioId] = useState("");
-  const [items, setItems] = useState<PrestamoItem[]>([]);
+  const [usuarioId, setUsuarioId] = useState(initialPrestamo?.usuarioId ? String(initialPrestamo.usuarioId) : "");
+  const [items, setItems] = useState<PrestamoItem[]>(initialItems);
   const [fechaSalida, setFechaSalida] = useState(
-    new Date().toISOString().split("T")[0]
+    initialPrestamo?.fechaSalida
+      ? new Date(initialPrestamo.fechaSalida).toISOString().split("T")[0]
+      : new Date().toISOString().split("T")[0]
   );
-  const [fechaDevolucion, setFechaDevolucion] = useState("");
-  const [notas, setNotas] = useState("");
+  const [fechaDevolucion, setFechaDevolucion] = useState(
+    initialPrestamo?.fechaDevolucion
+      ? new Date(initialPrestamo.fechaDevolucion).toISOString().split("T")[0]
+      : ""
+  );
+  const [notas, setNotas] = useState(initialPrestamo?.notas || "");
+  const [estado, setEstado] = useState<"PENDIENTE" | "ACTIVO" | "DEVUELTO" | "CANCELADO">(
+    initialPrestamo?.estado || "ACTIVO"
+  );
 
   const [selectedType, setSelectedType] = useState<"activo" | "consumible">(
     "activo"
@@ -165,7 +216,9 @@ export default function ModalPrestamo({
     try {
       const token = window.localStorage.getItem("inventario_token");
       const prestamo = {
+        id: initialPrestamo?.id,
         usuarioId: parseInt(usuarioId),
+        estado,
         items: items.map((item) => ({
           [item.type === "activo" ? "activoId" : "consumibleId"]: item.id,
           cantidad: item.cantidad,
@@ -178,7 +231,7 @@ export default function ModalPrestamo({
       };
 
       const response = await fetch("/api/prestamos", {
-        method: "POST",
+        method: mode === "edit" ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -188,15 +241,18 @@ export default function ModalPrestamo({
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Error al crear el préstamo");
+        throw new Error(data.error || (mode === "edit" ? "Error al actualizar el préstamo" : "Error al crear el préstamo"));
       }
+
+      const data = await response.json();
 
       setUsuarioId("");
       setItems([]);
+      setEstado("ACTIVO");
       setFechaSalida(new Date().toISOString().split("T")[0]);
       setFechaDevolucion("");
       setNotas("");
-      onCreated();
+      onSaved(data.prestamo ?? { id: initialPrestamo?.id ?? 0 });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
@@ -208,9 +264,9 @@ export default function ModalPrestamo({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[1px]">
-      <div className="max-w-2xl w-full mx-4 max-h-96 overflow-y-auto rounded-lg bg-white text-slate-900 shadow-lg">
+      <div className="max-w-4xl w-full mx-4 rounded-lg bg-white text-slate-900 shadow-lg">
         <div className="px-6 py-4 border-b border-slate-200 sticky top-0 bg-white">
-          <h2 className="text-xl font-bold text-slate-900">Nuevo Préstamo</h2>
+          <h2 className="text-xl font-bold text-slate-900">{mode === "edit" ? "Editar Préstamo" : "Nuevo Préstamo"}</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -237,6 +293,24 @@ export default function ModalPrestamo({
               ))}
             </select>
           </div>
+
+          {mode === "edit" ? (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Estado
+              </label>
+              <select
+                value={estado}
+                onChange={(e) => setEstado(e.target.value as "PENDIENTE" | "ACTIVO" | "DEVUELTO" | "CANCELADO")}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
+              >
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="ACTIVO">Activo</option>
+                <option value="DEVUELTO">Devuelto</option>
+                <option value="CANCELADO">Cancelado</option>
+              </select>
+            </div>
+          ) : null}
 
           {/* Agregar elementos */}
           <div className="border-t pt-4">
@@ -376,7 +450,7 @@ export default function ModalPrestamo({
               disabled={loading}
               className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
             >
-              {loading ? "Creando..." : "Crear Préstamo"}
+              {loading ? "Guardando..." : mode === "edit" ? "Actualizar Préstamo" : "Crear Préstamo"}
             </button>
           </div>
         </form>
