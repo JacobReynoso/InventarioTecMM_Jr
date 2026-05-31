@@ -45,9 +45,13 @@ export default function ModalConsumible({
     setLoading(true);
 
     try {
+      const token = window.localStorage.getItem("inventario_token");
       const response = await fetch("/api/consumibles", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(formData),
       });
 

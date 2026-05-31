@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getRequestRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
@@ -31,6 +32,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const role = getRequestRole(request);
+    if (!role) {
+      return NextResponse.json({ error: "Token no enviado." }, { status: 401 });
+    }
+
+    if (role === "lectura") {
+      return NextResponse.json({ error: "No tienes permisos para crear." }, { status: 403 });
+    }
+
     const body = await request.json();
 
     const name = String(body.name ?? "").trim();
@@ -65,6 +75,15 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const role = getRequestRole(request);
+    if (!role) {
+      return NextResponse.json({ error: "Token no enviado." }, { status: 401 });
+    }
+
+    if (role === "lectura") {
+      return NextResponse.json({ error: "No tienes permisos para modificar." }, { status: 403 });
+    }
+
     const body = await request.json();
     const id = Number(body.id);
 
@@ -105,6 +124,16 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const role = getRequestRole(request);
+
+    if (!role) {
+      return NextResponse.json({ error: "Token no enviado." }, { status: 401 });
+    }
+
+    if (role === "editor" || role === "lectura") {
+      return NextResponse.json({ error: "No tienes permisos para eliminar." }, { status: 403 });
+    }
+
     const url = new URL(request.url);
     const id = Number(url.searchParams.get("id") ?? 0);
 

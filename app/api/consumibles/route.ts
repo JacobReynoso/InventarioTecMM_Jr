@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRequestRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -52,6 +53,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const role = getRequestRole(request);
+    if (!role) {
+      return NextResponse.json({ error: "Token no enviado." }, { status: 401 });
+    }
+
+    if (role === "lectura") {
+      return NextResponse.json({ error: "No tienes permisos para crear consumibles." }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, categoria, stock, stockMinimo } = body;
 

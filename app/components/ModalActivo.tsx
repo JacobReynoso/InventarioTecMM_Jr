@@ -82,9 +82,13 @@ export default function ModalActivo({
     }
 
     try {
+      const token = window.localStorage.getItem("inventario_token");
       const response = await fetch("/api/activos", {
         method: mode === "edit" ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(form),
       });
 

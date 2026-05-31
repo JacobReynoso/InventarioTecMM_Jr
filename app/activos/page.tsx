@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { MoreVertical } from "lucide-react";
 import { Navigation } from "@/app/components/Navigation";
 import ModalActivo from "@/app/components/ModalActivo";
+import { getTokenRoleFromToken } from "@/lib/session";
 
 type Activo = {
   id: number;
@@ -31,6 +32,11 @@ const statusStyles: Record<string, string> = {
 };
 
 export default function ActivosPage() {
+  const token = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem("inventario_token"),
+    () => null
+  );
   const [activos, setActivos] = useState<Activo[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -39,7 +45,9 @@ export default function ActivosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingActivo, setEditingActivo] = useState<Activo | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const currentRole = getTokenRoleFromToken(token);
 
   async function loadActivos(page = 1, query = "") {
     try {
@@ -129,12 +137,14 @@ export default function ActivosPage() {
 
   function handleEditClick(activo: Activo) {
     setMenuOpenId(null);
+    setMenuPosition(null);
     setEditingActivo(activo);
     setIsModalOpen(true);
   }
 
   async function handleDeleteClick(activoId: number) {
     setMenuOpenId(null);
+    setMenuPosition(null);
 
     const confirmed = window.confirm("¿Eliminar este activo?");
     if (!confirmed) {
@@ -142,8 +152,10 @@ export default function ActivosPage() {
     }
 
     try {
+      const token = window.localStorage.getItem("inventario_token");
       const response = await fetch(`/api/activos?id=${activoId}`, {
         method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
 
       if (!response.ok) {
@@ -168,13 +180,24 @@ export default function ActivosPage() {
               <h1 className="text-3xl font-semibold text-black">Módulo de Activos</h1>
               <p className="mt-2 max-w-2xl text-slate-600">Gestiona los bienes del instituto con control de estado, ubicación y auditoría.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              Nuevo activo
-            </button>
+            {currentRole !== "lectura" ? (
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Nuevo activo
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white opacity-50 transition-none"
+              >
+                Nuevo activo
+              </button>
+            )}
           </div>
 
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -232,36 +255,65 @@ export default function ActivosPage() {
                       <td className="px-4 py-4 text-slate-600">{activo.ubicacion || "—"}</td>
                       <td className="px-4 py-4 text-slate-600">{activo.descripcion || "Sin descripción"}</td>
                       <td className="px-4 py-4 text-right">
-                        <div className="relative inline-flex">
+                        {currentRole === "lectura" ? (
                           <button
                             type="button"
-                            onClick={() =>
-                              setMenuOpenId((current) => (current === activo.id ? null : activo.id))
-                            }
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-                            aria-label="Abrir opciones"
+                            disabled
+                            aria-disabled="true"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 opacity-40 transition-none cursor-not-allowed"
                           >
                             <MoreVertical className="h-5 w-5" />
                           </button>
-                          {menuOpenId === activo.id ? (
-                            <div className="absolute right-0 top-10 z-10 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
-                              <button
-                                type="button"
-                                onClick={() => handleEditClick(activo)}
-                                className="block w-full px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                        ) : (
+                          <div className="relative inline-flex">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                const targetRect = event.currentTarget.getBoundingClientRect();
+
+                                setMenuOpenId((current) => {
+                                  const nextMenuId = current === activo.id ? null : activo.id;
+                                  setMenuPosition(
+                                    nextMenuId === null
+                                      ? null
+                                      : {
+                                          top: targetRect.bottom + 8,
+                                          left: targetRect.right - 144,
+                                        }
+                                  );
+                                  return nextMenuId;
+                                });
+                              }}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                              aria-label="Abrir opciones"
+                            >
+                              <MoreVertical className="h-5 w-5" />
+                            </button>
+                            {menuOpenId === activo.id ? (
+                              <div
+                                className="fixed z-50 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                                style={menuPosition ? { top: menuPosition.top, left: menuPosition.left } : undefined}
                               >
-                                Editar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteClick(activo.id)}
-                                className="block w-full px-4 py-3 text-left text-sm text-rose-600 transition hover:bg-rose-50"
-                              >
-                                Eliminar
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditClick(activo)}
+                                  className="block w-full px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                                >
+                                  Editar
+                                </button>
+                                {currentRole !== "editor" ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteClick(activo.id)}
+                                    className="block w-full px-4 py-3 text-left text-sm text-rose-600 transition hover:bg-rose-50"
+                                  >
+                                    Eliminar
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))

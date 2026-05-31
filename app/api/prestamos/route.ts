@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRequestRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type PrestamoItem = {
@@ -6,6 +7,8 @@ type PrestamoItem = {
   consumibleId?: number;
   cantidad: number;
 };
+
+type PrestamoEstado = "PENDIENTE" | "ACTIVO" | "DEVUELTO" | "CANCELADO";
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +20,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     const where = estado
-      ? { estado: estado as any }
+      ? { estado: estado as PrestamoEstado }
       : {};
 
     const [prestamos, total] = await Promise.all([
@@ -79,6 +82,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
+    const role = getRequestRole(request);
+    if (!role) {
+      return NextResponse.json({ error: "Token no enviado." }, { status: 401 });
+    }
+
+    if (role === "lectura") {
+      return NextResponse.json({ error: "No tienes permisos para registrar préstamos." }, { status: 403 });
+    }
+
     const body = await request.json();
     const usuarioId = Number(body.usuarioId ?? 0);
     const items = Array.isArray(body.items) ? body.items as PrestamoItem[] : [];
@@ -160,7 +172,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ prestamo }, { status: 201 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "No se pudo registrar el préstamo." }, { status: 500 });
   }
 }

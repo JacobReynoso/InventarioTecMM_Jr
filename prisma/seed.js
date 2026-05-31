@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcrypt");
@@ -11,22 +12,58 @@ async function main() {
     create: { name: "admin", description: "Administrador del sistema" },
   });
 
-  const userRole = await prisma.role.upsert({
+  await prisma.role.upsert({
     where: { name: "usuario" },
     update: { description: "Acceso básico para usuarios" },
     create: { name: "usuario", description: "Acceso básico para usuarios" },
   });
 
-  const password = await bcrypt.hash("Admin123!", 10);
+  const readOnlyRole = await prisma.role.upsert({
+    where: { name: "lectura" },
+    update: { description: "Acceso de solo lectura" },
+    create: { name: "lectura", description: "Acceso de solo lectura" },
+  });
+
+  const editorRole = await prisma.role.upsert({
+    where: { name: "editor" },
+    update: { description: "Puede crear, modificar y ver, pero no eliminar" },
+    create: { name: "editor", description: "Puede crear, modificar y ver, pero no eliminar" },
+  });
+
+  const adminPassword = await bcrypt.hash("admin123", 10);
+  const alumnoPassword = await bcrypt.hash("alu123", 10);
+  const asistentePassword = await bcrypt.hash("asis123", 10);
 
   await prisma.user.upsert({
     where: { email: "admin@instituto.edu" },
-    update: { name: "Administrador", password },
+    update: { name: "Administrador", password: adminPassword },
     create: {
       name: "Administrador",
       email: "admin@instituto.edu",
-      password,
+      password: adminPassword,
       role: { connect: { id: adminRole.id } },
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: "alu@instituto.edu" },
+    update: { name: "Alumno", password: alumnoPassword, role: { connect: { id: readOnlyRole.id } } },
+    create: {
+      name: "Alumno",
+      email: "alu@instituto.edu",
+      password: alumnoPassword,
+      role: { connect: { id: readOnlyRole.id } },
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: "asis@instituto.edu" },
+    update: { name: "Asistente", password: asistentePassword, role: { connect: { id: editorRole.id } } },
+    create: {
+      name: "Asistente",
+      email: "asis@instituto.edu",
+      password: asistentePassword,
+      role: { connect: { id: editorRole.id } },
     },
   });
 

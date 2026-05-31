@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Navigation } from "@/app/components/Navigation";
 import ModalPrestamo from "@/app/components/ModalPrestamo";
+import { getTokenRoleFromToken } from "@/lib/session";
 
 interface PrestamoDetalle {
   id: number;
@@ -51,6 +52,12 @@ const estadoColors: Record<string, { bg: string; text: string }> = {
 };
 
 export default function PrestamosPage() {
+  const token = React.useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem("inventario_token"),
+    () => null
+  );
+  const currentRole = getTokenRoleFromToken(token);
   const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
@@ -143,12 +150,23 @@ export default function PrestamosPage() {
             {/* Encabezado */}
             <div className="flex justify-between items-center mb-8">
               <h1 className="text-4xl font-bold text-slate-900">Préstamos</h1>
-            <button
-              onClick={() => setModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition"
-            >
-              + Nuevo Préstamo
-            </button>
+            {currentRole === "lectura" ? (
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                className="cursor-not-allowed rounded-lg bg-blue-600 px-6 py-2 font-semibold text-white opacity-50 transition-none"
+              >
+                + Nuevo Préstamo
+              </button>
+            ) : (
+              <button
+                onClick={() => setModalOpen(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition"
+              >
+                + Nuevo Préstamo
+              </button>
+            )}
           </div>
 
           {/* Filtro de estado */}

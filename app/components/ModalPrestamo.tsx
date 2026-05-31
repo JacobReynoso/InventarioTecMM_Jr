@@ -163,6 +163,7 @@ export default function ModalPrestamo({
     setLoading(true);
 
     try {
+      const token = window.localStorage.getItem("inventario_token");
       const prestamo = {
         usuarioId: parseInt(usuarioId),
         items: items.map((item) => ({
@@ -178,7 +179,10 @@ export default function ModalPrestamo({
 
       const response = await fetch("/api/prestamos", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(prestamo),
       });
 
@@ -203,8 +207,8 @@ export default function ModalPrestamo({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-      <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[1px]">
+      <div className="max-w-2xl w-full mx-4 max-h-96 overflow-y-auto rounded-lg bg-white text-slate-900 shadow-lg">
         <div className="px-6 py-4 border-b border-slate-200 sticky top-0 bg-white">
           <h2 className="text-xl font-bold text-slate-900">Nuevo Préstamo</h2>
         </div>
@@ -223,7 +227,7 @@ export default function ModalPrestamo({
             <select
               value={usuarioId}
               onChange={(e) => setUsuarioId(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
             >
               <option value="">Selecciona un usuario</option>
               {usuarios.map((u) => (
@@ -246,7 +250,7 @@ export default function ModalPrestamo({
                   onChange={(e) =>
                     setSelectedType(e.target.value as "activo" | "consumible")
                   }
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                 >
                   <option value="activo">Activo</option>
                   <option value="consumible">Consumible</option>
@@ -255,7 +259,7 @@ export default function ModalPrestamo({
                 <select
                   value={selectedId}
                   onChange={(e) => setSelectedId(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                 >
                   <option value="">Selecciona un elemento</option>
                   {selectedType === "activo" ? (
@@ -278,7 +282,7 @@ export default function ModalPrestamo({
                   value={cantidad}
                   onChange={(e) => setCantidad(e.target.value)}
                   min="1"
-                  className="w-20 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  className="w-20 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                 />
 
                 <button
@@ -330,7 +334,7 @@ export default function ModalPrestamo({
                 type="date"
                 value={fechaSalida}
                 onChange={(e) => setFechaSalida(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
               />
             </div>
 
@@ -342,7 +346,7 @@ export default function ModalPrestamo({
                 type="date"
                 value={fechaDevolucion}
                 onChange={(e) => setFechaDevolucion(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
               />
             </div>
 
@@ -353,7 +357,7 @@ export default function ModalPrestamo({
               <textarea
                 value={notas}
                 onChange={(e) => setNotas(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
                 rows={2}
               />
             </div>

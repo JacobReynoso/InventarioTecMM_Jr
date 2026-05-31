@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Navigation } from "@/app/components/Navigation";
 import ModalConsumible from "@/app/components/ModalConsumible";
+import { getTokenRoleFromToken } from "@/lib/session";
 
 interface Consumible {
   id: number;
@@ -22,6 +23,12 @@ interface PaginationInfo {
 }
 
 export default function ConsumiblesPage() {
+  const token = React.useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem("inventario_token"),
+    () => null
+  );
+  const currentRole = getTokenRoleFromToken(token);
   const [consumibles, setConsumibles] = useState<Consumible[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
@@ -147,12 +154,23 @@ export default function ConsumiblesPage() {
               {/* Encabezado */}
               <div className="flex justify-between items-center">
                 <h1 className="text-4xl font-bold text-slate-900">Consumibles</h1>
-                <button
-                  onClick={() => setModalOpen(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition"
-                >
-                  + Nuevo Consumible
-                </button>
+                {currentRole === "lectura" ? (
+                  <button
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    className="cursor-not-allowed rounded-lg bg-blue-600 px-6 py-2 font-semibold text-white opacity-50 transition-none"
+                  >
+                    + Nuevo Consumible
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setModalOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition"
+                  >
+                    + Nuevo Consumible
+                  </button>
+                )}
               </div>
 
               {/* Búsqueda */}
