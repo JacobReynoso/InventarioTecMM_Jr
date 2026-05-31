@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MoreVertical } from "lucide-react";
 import { Navigation } from "@/app/components/Navigation";
-import ModalActivo from "@/app/componentes/ModalActivo";
+import ModalActivo from "@/app/components/ModalActivo";
 
 type Activo = {
   id: number;
@@ -36,12 +37,11 @@ export default function ActivosPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingActivo, setEditingActivo] = useState<Activo | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function loadActivos(page = 1, query = "") {
-    setIsLoading(true);
-    setErrorMessage(null);
-
     try {
       const response = await fetch(`/api/activos?page=${page}&limit=10&search=${encodeURIComponent(query)}`);
       const data = (await response.json()) as ActivoResponse & { error?: string };
@@ -62,10 +62,48 @@ export default function ActivosPage() {
   }
 
   useEffect(() => {
-    loadActivos(1, search);
+    let cancelled = false;
+
+    async function run() {
+      try {
+        const response = await fetch(
+          `/api/activos?page=1&limit=10&search=${encodeURIComponent(search)}`
+        );
+        const data = (await response.json()) as ActivoResponse & { error?: string };
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok) {
+          setErrorMessage(data?.error || "No se pudieron cargar los activos.");
+          return;
+        }
+
+        setActivos(data.activos);
+        setCurrentPage(data.pagination.page);
+        setTotalPages(Math.ceil(data.pagination.total / data.pagination.limit));
+      } catch {
+        if (!cancelled) {
+          setErrorMessage("Error de conexión al cargar los activos.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
   }, [search]);
 
   function handleSearchChange(event: React.ChangeEvent<HTMLInputElement>) {
+    setIsLoading(true);
+    setErrorMessage(null);
     setSearch(event.target.value);
   }
 
@@ -73,12 +111,49 @@ export default function ActivosPage() {
     if (page < 1 || page > totalPages) {
       return;
     }
+    setIsLoading(true);
+    setErrorMessage(null);
     loadActivos(page, search);
   }
 
   function handleCreated(activo: Activo) {
     setIsModalOpen(false);
     setActivos((current) => [activo, ...current]);
+  }
+
+  function handleSaved(activo: Activo) {
+    setIsModalOpen(false);
+    setEditingActivo(null);
+    setActivos((current) => current.map((item) => (item.id === activo.id ? activo : item)));
+  }
+
+  function handleEditClick(activo: Activo) {
+    setMenuOpenId(null);
+    setEditingActivo(activo);
+    setIsModalOpen(true);
+  }
+
+  async function handleDeleteClick(activoId: number) {
+    setMenuOpenId(null);
+
+    const confirmed = window.confirm("¿Eliminar este activo?");
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/activos?id=${activoId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo eliminar el activo.");
+      }
+
+      setActivos((current) => current.filter((item) => item.id !== activoId));
+    } catch {
+      setErrorMessage("No se pudo eliminar el activo.");
+    }
   }
 
   return (
@@ -128,18 +203,19 @@ export default function ActivosPage() {
                   <th className="px-4 py-4">Estado</th>
                   <th className="px-4 py-4">Ubicación</th>
                   <th className="px-4 py-4">Descripción</th>
+                  <th className="px-4 py-4 text-right">Opciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                       Cargando activos...
                     </td>
                   </tr>
                 ) : activos.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                       No se encontraron activos.
                     </td>
                   </tr>
@@ -155,6 +231,38 @@ export default function ActivosPage() {
                       </td>
                       <td className="px-4 py-4 text-slate-600">{activo.ubicacion || "—"}</td>
                       <td className="px-4 py-4 text-slate-600">{activo.descripcion || "Sin descripción"}</td>
+                      <td className="px-4 py-4 text-right">
+                        <div className="relative inline-flex">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMenuOpenId((current) => (current === activo.id ? null : activo.id))
+                            }
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                            aria-label="Abrir opciones"
+                          >
+                            <MoreVertical className="h-5 w-5" />
+                          </button>
+                          {menuOpenId === activo.id ? (
+                            <div className="absolute right-0 top-10 z-10 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+                              <button
+                                type="button"
+                                onClick={() => handleEditClick(activo)}
+                                className="block w-full px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteClick(activo.id)}
+                                className="block w-full px-4 py-3 text-left text-sm text-rose-600 transition hover:bg-rose-50"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -189,7 +297,17 @@ export default function ActivosPage() {
         </div>
       </div>
 
-      <ModalActivo open={isModalOpen} onClose={() => setIsModalOpen(false)} onCreated={handleCreated} />
+      <ModalActivo
+        key={`${isModalOpen ? "open" : "closed"}-${editingActivo?.id ?? "new"}`}
+        open={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingActivo(null);
+        }}
+        onSaved={editingActivo ? handleSaved : handleCreated}
+        initialActivo={editingActivo}
+        mode={editingActivo ? "edit" : "create"}
+      />
     </>
   );
 }

@@ -32,10 +32,17 @@ export default function ConsumiblesPage() {
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const fallbackPagination = (page = 1): PaginationInfo => ({
+    page,
+    limit: 10,
+    total: 0,
+    pages: 0,
+  });
 
   const fetchConsumibles = async (page = 1, searchTerm = "") => {
     try {
-      setLoading(true);
       const params = new URLSearchParams({
         page: page.toString(),
         limit: "10",
@@ -43,25 +50,83 @@ export default function ConsumiblesPage() {
       });
       const response = await fetch(`/api/consumibles?${params}`);
       const data = await response.json();
-      setConsumibles(data.consumibles);
-      setPagination(data.pagination);
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error fetching consumibles");
+      }
+
+      setConsumibles(Array.isArray(data.consumibles) ? data.consumibles : []);
+      setPagination(data.pagination ?? fallbackPagination(page));
     } catch (error) {
       console.error("Error fetching consumibles:", error);
+      setConsumibles([]);
+      setPagination(fallbackPagination(page));
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron cargar los consumibles"
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchConsumibles(1, search);
+    let cancelled = false;
+
+    async function run() {
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "10",
+        });
+        const response = await fetch(`/api/consumibles?${params}`);
+        const data = await response.json();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(data.error || "Error fetching consumibles");
+        }
+
+        setConsumibles(Array.isArray(data.consumibles) ? data.consumibles : []);
+        setPagination(data.pagination ?? fallbackPagination(1));
+      } catch (error) {
+        if (!cancelled) {
+          setConsumibles([]);
+          setPagination(fallbackPagination(1));
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "No se pudieron cargar los consumibles"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleSearch = (value: string) => {
+    setLoading(true);
+    setErrorMessage(null);
     setSearch(value);
     fetchConsumibles(1, value);
   };
 
   const handleCreated = () => {
+    setLoading(true);
+    setErrorMessage(null);
     fetchConsumibles(pagination.page, search);
     setModalOpen(false);
   };
@@ -108,6 +173,10 @@ export default function ConsumiblesPage() {
             {loading ? (
               <div className="p-8 text-center text-slate-500">
                 Cargando consumibles...
+              </div>
+            ) : errorMessage ? (
+              <div className="p-8 text-center text-amber-900 bg-amber-50">
+                {errorMessage}
               </div>
             ) : consumibles.length === 0 ? (
               <div className="p-8 text-center text-slate-500">
@@ -180,9 +249,11 @@ export default function ConsumiblesPage() {
                 {pagination.pages > 1 && (
                   <div className="px-6 py-4 border-t border-slate-200 flex justify-between items-center bg-slate-50">
                     <button
-                      onClick={() =>
-                        fetchConsumibles(pagination.page - 1, search)
-                      }
+                      onClick={() => {
+                        setLoading(true);
+                        setErrorMessage(null);
+                        fetchConsumibles(pagination.page - 1, search);
+                      }}
                       disabled={pagination.page === 1}
                       className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -192,9 +263,11 @@ export default function ConsumiblesPage() {
                       Página {pagination.page} de {pagination.pages}
                     </span>
                     <button
-                      onClick={() =>
-                        fetchConsumibles(pagination.page + 1, search)
-                      }
+                      onClick={() => {
+                        setLoading(true);
+                        setErrorMessage(null);
+                        fetchConsumibles(pagination.page + 1, search);
+                      }}
                       disabled={pagination.page === pagination.pages}
                       className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >

@@ -6,7 +6,7 @@ export function Navigation() {
   return (
     <nav className="flex items-center justify-between gap-4 px-6 py-3 bg-gradient-to-b from-indigo-900 to-indigo-800 text-white">
       <div>
-        <span className="text-xl font-semibold">TecMM</span>
+        <span className="text-2xl font-semibold tracking-[0.2em]">TecMM</span>
       </div>
 
       <div className="flex items-center gap-4 divide-x divide-white/20">

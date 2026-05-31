@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 type ActivoFormData = {
+  id?: number;
   name: string;
   barcode: string;
   ubicacion: string;
@@ -10,10 +11,12 @@ type ActivoFormData = {
   estado: "DISPONIBLE" | "PRESTADO" | "MANTENIMIENTO" | "RETIRADO";
 };
 
+type ActivoSeed = Partial<ActivoFormData> | null | undefined;
+
 type ModalActivoProps = {
   open: boolean;
   onClose: () => void;
-  onCreated: (activo: {
+  onSaved: (activo: {
     id: number;
     name: string;
     barcode?: string | null;
@@ -21,6 +24,8 @@ type ModalActivoProps = {
     estado: string;
     ubicacion?: string | null;
   }) => void;
+  initialActivo?: ActivoSeed;
+  mode?: "create" | "edit";
 };
 
 const initialData: ActivoFormData = {
@@ -31,8 +36,26 @@ const initialData: ActivoFormData = {
   estado: "DISPONIBLE",
 };
 
-export default function ModalActivo({ open, onClose, onCreated }: ModalActivoProps) {
-  const [form, setForm] = useState<ActivoFormData>(initialData);
+function buildInitialForm(initialActivo: ActivoSeed): ActivoFormData {
+  return {
+    ...initialData,
+    id: initialActivo?.id,
+    name: initialActivo?.name ?? "",
+    barcode: initialActivo?.barcode ?? "",
+    ubicacion: initialActivo?.ubicacion ?? "",
+    descripcion: initialActivo?.descripcion ?? "",
+    estado: initialActivo?.estado ?? "DISPONIBLE",
+  };
+}
+
+export default function ModalActivo({
+  open,
+  onClose,
+  onSaved,
+  initialActivo,
+  mode = "create",
+}: ModalActivoProps) {
+  const [form, setForm] = useState<ActivoFormData>(() => buildInitialForm(initialActivo));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +63,9 @@ export default function ModalActivo({ open, onClose, onCreated }: ModalActivoPro
     return null;
   }
 
-  function handleChange(event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+  function handleChange(
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
   }
@@ -58,7 +83,7 @@ export default function ModalActivo({ open, onClose, onCreated }: ModalActivoPro
 
     try {
       const response = await fetch("/api/activos", {
-        method: "POST",
+        method: mode === "edit" ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
@@ -66,14 +91,16 @@ export default function ModalActivo({ open, onClose, onCreated }: ModalActivoPro
       const result = await response.json();
 
       if (!response.ok) {
-        setError(result.error || "No se pudo crear el activo.");
+        setError(
+          result.error || (mode === "edit" ? "No se pudo actualizar el activo." : "No se pudo crear el activo.")
+        );
         return;
       }
 
-      onCreated(result.activo);
+      onSaved(result.activo);
       setForm(initialData);
     } catch {
-      setError("Error de red al crear el activo.");
+      setError(mode === "edit" ? "Error de red al actualizar el activo." : "Error de red al crear el activo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -84,10 +111,18 @@ export default function ModalActivo({ open, onClose, onCreated }: ModalActivoPro
       <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-2xl shadow-slate-900/10">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-semibold">Agregar nuevo activo</h2>
-            <p className="mt-2 text-sm text-slate-600">Registra el activo con su código de barras y ubicación.</p>
+            <h2 className="text-2xl font-semibold">{mode === "edit" ? "Editar activo" : "Agregar nuevo activo"}</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              {mode === "edit"
+                ? "Actualiza el activo con su información."
+                : "Registra el activo con su código de barras y ubicación."}
+            </p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-2xl bg-slate-200 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-300">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl bg-slate-200 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-300"
+          >
             Cerrar
           </button>
         </div>
@@ -161,7 +196,7 @@ export default function ModalActivo({ open, onClose, onCreated }: ModalActivoPro
             disabled={isSubmitting}
             className="inline-flex justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
           >
-            {isSubmitting ? "Guardando..." : "Registrar activo"}
+            {isSubmitting ? "Guardando..." : mode === "edit" ? "Actualizar activo" : "Registrar activo"}
           </button>
         </form>
       </div>

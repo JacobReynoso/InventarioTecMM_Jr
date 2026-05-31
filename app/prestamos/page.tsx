@@ -64,7 +64,6 @@ export default function PrestamosPage() {
 
   const fetchPrestamos = async (page = 1, estadoFilter = "") => {
     try {
-      setLoading(true);
       const params = new URLSearchParams({
         page: page.toString(),
         limit: "10",
@@ -82,15 +81,49 @@ export default function PrestamosPage() {
   };
 
   useEffect(() => {
-    fetchPrestamos(1, estado);
+    let cancelled = false;
+
+    async function run() {
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "10",
+        });
+        const response = await fetch(`/api/prestamos?${params}`);
+        const data = await response.json();
+
+        if (cancelled) {
+          return;
+        }
+
+        setPrestamos(data.prestamos);
+        setPagination(data.pagination);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error fetching prestamos:", error);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleEstadoFilter = (value: string) => {
+    setLoading(true);
     setEstado(value);
     fetchPrestamos(1, value);
   };
 
   const handleCreated = () => {
+    setLoading(true);
     fetchPrestamos(pagination.page, estado);
     setModalOpen(false);
   };
@@ -229,9 +262,10 @@ export default function PrestamosPage() {
                 {pagination.pages > 1 && (
                   <div className="px-6 py-4 border-t border-slate-200 flex justify-between items-center bg-slate-50">
                     <button
-                      onClick={() =>
-                        fetchPrestamos(pagination.page - 1, estado)
-                      }
+                      onClick={() => {
+                        setLoading(true);
+                        fetchPrestamos(pagination.page - 1, estado);
+                      }}
                       disabled={pagination.page === 1}
                       className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -241,9 +275,10 @@ export default function PrestamosPage() {
                       Página {pagination.page} de {pagination.pages}
                     </span>
                     <button
-                      onClick={() =>
-                        fetchPrestamos(pagination.page + 1, estado)
-                      }
+                      onClick={() => {
+                        setLoading(true);
+                        fetchPrestamos(pagination.page + 1, estado);
+                      }}
                       disabled={pagination.page === pagination.pages}
                       className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >

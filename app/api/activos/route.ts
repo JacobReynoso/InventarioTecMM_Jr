@@ -37,11 +37,7 @@ export async function POST(request: Request) {
     const barcode = body.barcode ? String(body.barcode).trim() : null;
     const descripcion = body.descripcion ? String(body.descripcion).trim() : null;
     const ubicacion = body.ubicacion ? String(body.ubicacion).trim() : null;
-    const estado = (String(body.estado ?? "DISPONIBLE").toUpperCase() as
-      | "DISPONIBLE"
-      | "PRESTADO"
-      | "MANTENIMIENTO"
-      | "RETIRADO");
+    const estado = String(body.estado ?? "DISPONIBLE").toUpperCase();
 
     if (!name) {
       return NextResponse.json({ error: "El nombre del activo es obligatorio." }, { status: 400 });
@@ -57,12 +53,69 @@ export async function POST(request: Request) {
         barcode,
         descripcion,
         ubicacion,
-        estado,
+        estado: estado as "DISPONIBLE" | "PRESTADO" | "MANTENIMIENTO" | "RETIRADO",
       },
     });
 
     return NextResponse.json({ activo }, { status: 201 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "No se pudo crear el activo." }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const id = Number(body.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return NextResponse.json({ error: "ID de activo inválido." }, { status: 400 });
+    }
+
+    const name = String(body.name ?? "").trim();
+    const barcode = body.barcode ? String(body.barcode).trim() : null;
+    const descripcion = body.descripcion ? String(body.descripcion).trim() : null;
+    const ubicacion = body.ubicacion ? String(body.ubicacion).trim() : null;
+    const estado = String(body.estado ?? "DISPONIBLE").toUpperCase();
+
+    if (!name) {
+      return NextResponse.json({ error: "El nombre del activo es obligatorio." }, { status: 400 });
+    }
+
+    if (!["DISPONIBLE", "PRESTADO", "MANTENIMIENTO", "RETIRADO"].includes(estado)) {
+      return NextResponse.json({ error: "Estado de activo inválido." }, { status: 400 });
+    }
+
+    const activo = await prisma.activo.update({
+      where: { id },
+      data: {
+        name,
+        barcode,
+        descripcion,
+        ubicacion,
+        estado: estado as "DISPONIBLE" | "PRESTADO" | "MANTENIMIENTO" | "RETIRADO",
+      },
+    });
+
+    return NextResponse.json({ activo });
+  } catch {
+    return NextResponse.json({ error: "No se pudo actualizar el activo." }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const id = Number(url.searchParams.get("id") ?? 0);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return NextResponse.json({ error: "ID de activo inválido." }, { status: 400 });
+    }
+
+    await prisma.activo.delete({ where: { id } });
+
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "No se pudo eliminar el activo." }, { status: 500 });
   }
 }

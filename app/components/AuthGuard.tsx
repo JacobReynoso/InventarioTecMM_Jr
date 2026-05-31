@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/app/components/Sidebar";
 
@@ -9,14 +9,16 @@ interface Props {
 }
 
 export default function AuthGuard({ children }: Props) {
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const pathname = usePathname();
   const router = useRouter();
+  const token = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem("inventario_token"),
+    () => null
+  );
+  const authenticated = Boolean(token);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("inventario_token") : null;
-    setAuthenticated(Boolean(token));
-
     if (!token) {
       // If not authenticated and not on login page, redirect to login
       if (pathname !== "/login") {
@@ -28,14 +30,15 @@ export default function AuthGuard({ children }: Props) {
         router.push("/dashboard");
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname, router, token]);
 
-  if (authenticated === null) return null;
+  if (pathname === "/login") {
+    // When on the login route, keep the page shell simple regardless of auth state.
+    return <main className="flex-1">{children}</main>;
+  }
 
   if (!authenticated) {
-    // When not authenticated, render children (e.g., login) without sidebar
-    return <main className="flex-1">{children}</main>;
+    return null;
   }
 
   // When authenticated, show sidebar and children

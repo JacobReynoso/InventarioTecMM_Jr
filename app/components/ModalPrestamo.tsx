@@ -63,38 +63,50 @@ export default function ModalPrestamo({
 
   useEffect(() => {
     if (open) {
-      fetchData();
+      let cancelled = false;
+
+      async function run() {
+        try {
+          const [usersRes, activosRes, consumiblesRes] = await Promise.all([
+            fetch("/api/auth/users"),
+            fetch("/api/activos?limit=100"),
+            fetch("/api/consumibles?limit=100"),
+          ]);
+
+          if (cancelled) {
+            return;
+          }
+
+          if (usersRes.ok) {
+            const data = await usersRes.json();
+            setUsuarios(data.usuarios || data || []);
+          }
+
+          if (activosRes.ok) {
+            const data = await activosRes.json();
+            setActivos(
+              data.activos?.filter((a: Activo) => a.estado === "DISPONIBLE") || []
+            );
+          }
+
+          if (consumiblesRes.ok) {
+            const data = await consumiblesRes.json();
+            setConsumibles(data.consumibles || []);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error("Error fetching data:", error);
+          }
+        }
+      }
+
+      void run();
+
+      return () => {
+        cancelled = true;
+      };
     }
   }, [open]);
-
-  const fetchData = async () => {
-    try {
-      const [usersRes, activosRes, consumiblesRes] = await Promise.all([
-        fetch("/api/auth/users"),
-        fetch("/api/activos?limit=100"),
-        fetch("/api/consumibles?limit=100"),
-      ]);
-
-      if (usersRes.ok) {
-        const data = await usersRes.json();
-        setUsuarios(data.usuarios || data || []);
-      }
-
-      if (activosRes.ok) {
-        const data = await activosRes.json();
-        setActivos(
-          data.activos?.filter((a: Activo) => a.estado === "DISPONIBLE") || []
-        );
-      }
-
-      if (consumiblesRes.ok) {
-        const data = await consumiblesRes.json();
-        setConsumibles(data.consumibles || []);
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    }
-  };
 
   const handleAddItem = () => {
     if (!selectedId) {

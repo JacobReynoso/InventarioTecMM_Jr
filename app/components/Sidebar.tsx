@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
@@ -32,7 +33,7 @@ export function Sidebar() {
     <aside className={`bg-gradient-to-b from-indigo-900 to-indigo-800 text-white transition-all duration-300 flex flex-col ${isOpen ? "w-64" : "w-32"}`}>
       {/* Logo (only image, no text) */}
       <div className="flex items-center justify-center px-6 py-8 border-b border-indigo-700">
-        <img src="/tecmm-logo.png" alt="Logo" className="w-28 h-28 object-contain flex-shrink-0" />
+        <Image src="/tecmm-logo.png" alt="Logo" width={112} height={112} className="h-28 w-28 object-contain flex-shrink-0" />
       </div>
 
       {/* Navigation */}
