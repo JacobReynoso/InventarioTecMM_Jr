@@ -99,6 +99,7 @@ model Prestamo {
   estado         PrestamoEstado    @default(PENDIENTE)
   fechaSalida    DateTime          @default(now())
   fechaDevolucion DateTime?
+  fechaDevolucionAutomatica DateTime?
   notas          String?
   detalles       PrestamoDetalle[]
   movimientos    Movimiento[]

@@ -65,17 +65,34 @@ async function main() {
     },
   });
 
+  // Limpiar activos y consumibles existentes
+  await prisma.prestamoDetalle.deleteMany({});
+  await prisma.prestamo.deleteMany({});
+  await prisma.asignacion.deleteMany({});
+  await prisma.movimiento.deleteMany({});
+  await prisma.activo.deleteMany({});
+  await prisma.consumible.deleteMany({});
+
+  // Crear solo los activos especificados
   await prisma.activo.createMany({
     data: [
-      { name: "Laptop Dell", barcode: "DL-2026-001", ubicacion: "Aula 1", descripcion: "Laptop para docentes" },
-      { name: "Proyector Epson", barcode: "EP-3003", ubicacion: "Sala de conferencias", descripcion: "Proyector multimedia" },
+      { name: "PC Mac", barcode: "MAC-2026-001", ubicacion: "Aula 1", descripcion: "Computadora Mac" },
+      { name: "Laptop Alienware", barcode: "AW-2026-002", ubicacion: "Aula 2", descripcion: "Laptop gaming Alienware" },
+      { name: "SmartTv LG", barcode: "LG-2026-003", ubicacion: "Sala de conferencias", descripcion: "SmartTV LG 55 pulgadas" },
+      { name: "Proyector Epson", barcode: "EP-2026-004", ubicacion: "Sala de conferencias", descripcion: "Proyector multimedia Epson" },
+      { name: "Cable HDMI", barcode: "HDMI-2026-005", ubicacion: "Almacén", descripcion: "Cable HDMI 2.0" },
+      { name: "Extensión", barcode: "EXT-2026-006", ubicacion: "Almacén", descripcion: "Extensión eléctrica 10m" },
+      { name: "Teclado", barcode: "KEY-2026-007", ubicacion: "Almacén", descripcion: "Teclado mecánico inalámbrico" },
+      { name: "Mouse", barcode: "MSE-2026-008", ubicacion: "Almacén", descripcion: "Mouse inalámbrico" },
+      { name: "Router", barcode: "RTR-2026-009", ubicacion: "Almacén", descripcion: "Router WiFi 6" },
+      { name: "Switch", barcode: "SWI-2026-010", ubicacion: "Almacén", descripcion: "Switch de red 24 puertos" },
     ],
   });
 
+  // No crear consumibles para simplificar el demo
   await prisma.consumible.createMany({
     data: [
-      { name: "Cartucho de tinta negro", categoria: "Suministros", stock: 12, stockMinimo: 3 },
-      { name: "Papel A4", categoria: "Papel", stock: 240, stockMinimo: 50 },
+      { name: "Cartucho de tinta negro", categoria: "Suministros", stock: 0, stockMinimo: 3 },
     ],
   });
 }

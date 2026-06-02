@@ -10,7 +10,17 @@ type ConsumibleFormData = {
   stockMinimo: number;
 };
 
-type ConsumibleSeed = Partial<ConsumibleFormData> | null | undefined;
+type ConsumibleSeed =
+  | Partial<ConsumibleFormData>
+  | {
+      id?: number;
+      name?: string;
+      categoria?: string | null;
+      stock?: number | null;
+      stockMinimo?: number | null;
+    }
+  | null
+  | undefined;
 
 interface ModalConsumibleProps {
   open: boolean;

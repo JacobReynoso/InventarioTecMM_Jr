@@ -11,7 +11,18 @@ type ActivoFormData = {
   estado: "DISPONIBLE" | "PRESTADO" | "MANTENIMIENTO" | "RETIRADO";
 };
 
-type ActivoSeed = Partial<ActivoFormData> | null | undefined;
+type ActivoSeed =
+  | Partial<ActivoFormData>
+  | {
+      id?: number;
+      name?: string;
+      barcode?: string | null;
+      ubicacion?: string | null;
+      descripcion?: string | null;
+      estado?: string;
+    }
+  | null
+  | undefined;
 
 type ModalActivoProps = {
   open: boolean;
@@ -44,7 +55,7 @@ function buildInitialForm(initialActivo: ActivoSeed): ActivoFormData {
     barcode: initialActivo?.barcode ?? "",
     ubicacion: initialActivo?.ubicacion ?? "",
     descripcion: initialActivo?.descripcion ?? "",
-    estado: initialActivo?.estado ?? "DISPONIBLE",
+    estado: (initialActivo?.estado as ActivoFormData["estado"]) ?? "DISPONIBLE",
   };
 }
 

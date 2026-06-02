@@ -151,7 +151,7 @@ export default function LoginPage() {
       <div className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6 py-12">
         <section className="rounded-none bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-800 p-10 shadow-2xl shadow-slate-950/40">
           <div className="flex items-center gap-6">
-            <Image src="/tecmm-logo.png" alt="Logo" width={144} height={144} className="h-36 w-36 object-contain flex-shrink-0" />
+            <Image src="/tecmm-logo.png" alt="Logo" width={144} height={144} loading="eager" className="h-36 w-36 object-contain flex-shrink-0" />
             <div>
               <h1 className="text-4xl font-semibold text-white">TecMM</h1>
               <p className="mt-1 text-slate-300">Bienvenido al gestor de inventario</p>

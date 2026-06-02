@@ -46,7 +46,7 @@ interface InitialPrestamo {
 interface ModalPrestamoProps {
   open: boolean;
   onClose: () => void;
-  onSaved: (prestamo: { id: number }) => void;
+  onSaved: (prestamo: { id: number; insufficientStock?: boolean }) => void;
   initialPrestamo?: InitialPrestamo | null;
   mode?: "create" | "edit";
 }
@@ -252,7 +252,10 @@ export default function ModalPrestamo({
       setFechaSalida(new Date().toISOString().split("T")[0]);
       setFechaDevolucion("");
       setNotas("");
-      onSaved(data.prestamo ?? { id: initialPrestamo?.id ?? 0 });
+      onSaved({
+        id: data.prestamo?.id ?? initialPrestamo?.id ?? 0,
+        insufficientStock: data.insufficientStock ?? false,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {

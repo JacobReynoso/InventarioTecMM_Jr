@@ -24,13 +24,13 @@ interface PaginationInfo {
 }
 
 export default function ConsumiblesPage() {
-  const token = React.useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem("inventario_token"),
-    () => null
-  );
+  const [token, setToken] = useState<string | null>(null);
   const currentRole = getTokenRoleFromToken(token);
   const [consumibles, setConsumibles] = useState<Consumible[]>([]);
+
+  useEffect(() => {
+    setToken(window.localStorage.getItem("inventario_token"));
+  }, []);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
     limit: 10,

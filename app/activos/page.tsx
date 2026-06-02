@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { MoreVertical } from "lucide-react";
 import { Navigation } from "@/app/components/Navigation";
 import ModalActivo from "@/app/components/ModalActivo";
@@ -32,12 +32,12 @@ const statusStyles: Record<string, string> = {
 };
 
 export default function ActivosPage() {
-  const token = useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem("inventario_token"),
-    () => null
-  );
+  const [token, setToken] = useState<string | null>(null);
   const [activos, setActivos] = useState<Activo[]>([]);
+
+  useEffect(() => {
+    setToken(window.localStorage.getItem("inventario_token"));
+  }, []);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);

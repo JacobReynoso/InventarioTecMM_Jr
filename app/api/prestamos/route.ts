@@ -28,7 +28,11 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     const where = estado
-      ? { estado: estado as PrestamoEstado }
+      ? {
+          estado: {
+            in: estado.split(",").map((s) => s.trim() as PrestamoEstado),
+          },
+        }
       : {};
 
     const [prestamos, total] = await Promise.all([
@@ -111,57 +115,106 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Usuario y elementos del préstamo son obligatorios." }, { status: 400 });
     }
 
+    // Validar disponibilidad de stock primero
+    let allItemsAvailable = true;
+    for (const item of items) {
+      if (item.activoId) {
+        const activo = await prisma.activo.findUnique({ where: { id: item.activoId } });
+        if (!activo || activo.estado !== "DISPONIBLE") {
+          allItemsAvailable = false;
+          break;
+        }
+      }
+      if (item.consumibleId) {
+        const consumible = await prisma.consumible.findUnique({ where: { id: item.consumibleId } });
+        const cantidad = item.cantidad || 1;
+        if (!consumible || consumible.stock < cantidad) {
+          allItemsAvailable = false;
+          break;
+        }
+      }
+    }
+
     const prestamo = await prisma.$transaction(async (tx) => {
+      // Si hay stock, crear ACTIVO; si no, crear PENDIENTE
+      const estado: PrestamoEstado = allItemsAvailable ? "ACTIVO" : "PENDIENTE";
+      
       const createdPrestamo = await tx.prestamo.create({
         data: {
           usuarioId,
-          estado: "ACTIVO",
+          estado,
           fechaSalida,
           fechaDevolucion,
           notas,
         },
       });
 
-      for (const item of items) {
-        if (item.activoId) {
-          const activo = await tx.activo.findUnique({ where: { id: item.activoId } });
-          if (!activo || activo.estado !== "DISPONIBLE") {
-            throw new Error(`Activo ${item.activoId} no disponible`);
+      // Solo procesar inventario si estado es ACTIVO
+      if (allItemsAvailable) {
+        for (const item of items) {
+          if (item.activoId) {
+            const activo = await tx.activo.findUnique({ where: { id: item.activoId } });
+            if (!activo || activo.estado !== "DISPONIBLE") {
+              throw new Error(`Activo ${item.activoId} no disponible`);
+            }
+
+            await tx.activo.update({
+              where: { id: item.activoId },
+              data: { estado: "PRESTADO" },
+            });
+
+            await tx.prestamoDetalle.create({
+              data: {
+                prestamoId: createdPrestamo.id,
+                activoId: item.activoId,
+                cantidad: item.cantidad || 1,
+              },
+            });
           }
 
-          await tx.activo.update({
-            where: { id: item.activoId },
-            data: { estado: "PRESTADO" },
-          });
+          if (item.consumibleId) {
+            const consumible = await tx.consumible.findUnique({ where: { id: item.consumibleId } });
+            const cantidad = item.cantidad || 1;
+            if (!consumible || consumible.stock < cantidad) {
+              throw new Error(`Consumible ${item.consumibleId} sin stock suficiente`);
+            }
 
-          await tx.prestamoDetalle.create({
-            data: {
-              prestamoId: createdPrestamo.id,
-              activoId: item.activoId,
-              cantidad: item.cantidad || 1,
-            },
-          });
+            await tx.consumible.update({
+              where: { id: item.consumibleId },
+              data: { stock: consumible.stock - cantidad },
+            });
+
+            await tx.prestamoDetalle.create({
+              data: {
+                prestamoId: createdPrestamo.id,
+                consumibleId: item.consumibleId,
+                cantidad: cantidad,
+              },
+            });
+          }
         }
-
-        if (item.consumibleId) {
-          const consumible = await tx.consumible.findUnique({ where: { id: item.consumibleId } });
-          const cantidad = item.cantidad || 1;
-          if (!consumible || consumible.stock < cantidad) {
-            throw new Error(`Consumible ${item.consumibleId} sin stock suficiente`);
+      } else {
+        // Si es PENDIENTE, solo crear los detalles sin afectar el inventario
+        for (const item of items) {
+          if (item.activoId) {
+            await tx.prestamoDetalle.create({
+              data: {
+                prestamoId: createdPrestamo.id,
+                activoId: item.activoId,
+                cantidad: item.cantidad || 1,
+              },
+            });
           }
 
-          await tx.consumible.update({
-            where: { id: item.consumibleId },
-            data: { stock: consumible.stock - cantidad },
-          });
-
-          await tx.prestamoDetalle.create({
-            data: {
-              prestamoId: createdPrestamo.id,
-              consumibleId: item.consumibleId,
-              cantidad: cantidad,
-            },
-          });
+          if (item.consumibleId) {
+            await tx.prestamoDetalle.create({
+              data: {
+                prestamoId: createdPrestamo.id,
+                consumibleId: item.consumibleId,
+                cantidad: item.cantidad || 1,
+              },
+            });
+          }
         }
       }
 
@@ -179,8 +232,12 @@ export async function POST(request: Request) {
       return createdPrestamo;
     });
 
-    return NextResponse.json({ prestamo }, { status: 201 });
-  } catch {
+    return NextResponse.json({ 
+      prestamo,
+      insufficientStock: !allItemsAvailable,
+    }, { status: 201 });
+  } catch (error) {
+    console.error("Error creating prestamo:", error);
     return NextResponse.json({ error: "No se pudo registrar el préstamo." }, { status: 500 });
   }
 }

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { MoreVertical } from "lucide-react";
 import { Navigation } from "@/app/components/Navigation";
 import ModalPrestamo from "@/app/components/ModalPrestamo";
+import ModalStockNotification from "@/app/components/ModalStockNotification";
 import { getTokenRoleFromToken } from "@/lib/session";
 
 interface PrestamoDetalle {
@@ -53,14 +54,21 @@ const estadoColors: Record<string, { bg: string; text: string }> = {
 };
 
 export default function PrestamosPage() {
-  const token = React.useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem("inventario_token"),
-    () => null
-  );
+  const [token, setToken] = useState<string | null>(null);
   const currentRole = getTokenRoleFromToken(token);
   const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
+  const [historialPrestamos, setHistorialPrestamos] = useState<Prestamo[]>([]);
+
+  useEffect(() => {
+    setToken(window.localStorage.getItem("inventario_token"));
+  }, []);
   const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0,
+  });
+  const [paginationHistorial, setPaginationHistorial] = useState<PaginationInfo>({
     page: 1,
     limit: 10,
     total: 0,
@@ -72,15 +80,19 @@ export default function PrestamosPage() {
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingHistorial, setLoadingHistorial] = useState(true);
+  const [stockNotificationOpen, setStockNotificationOpen] = useState(false);
 
   const canManageActions = currentRole === "admin" || currentRole === "editor";
 
   const fetchPrestamos = async (page = 1, estadoFilter = "") => {
     try {
+      // Si no hay filtro, usar PENDIENTE,ACTIVO por defecto
+      const defaultEstado = "PENDIENTE,ACTIVO";
       const params = new URLSearchParams({
         page: page.toString(),
         limit: "10",
-        ...(estadoFilter && { estado: estadoFilter }),
+        estado: estadoFilter || defaultEstado,
       });
       const response = await fetch(`/api/prestamos?${params}`);
       const data = await response.json();
@@ -93,6 +105,24 @@ export default function PrestamosPage() {
     }
   };
 
+  const fetchHistorialPrestamos = async (page = 1) => {
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: "10",
+        estado: "DEVUELTO,CANCELADO",
+      });
+      const response = await fetch(`/api/prestamos?${params}`);
+      const data = await response.json();
+      setHistorialPrestamos(data.prestamos);
+      setPaginationHistorial(data.pagination);
+    } catch (error) {
+      console.error("Error fetching historial prestamos:", error);
+    } finally {
+      setLoadingHistorial(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -101,6 +131,7 @@ export default function PrestamosPage() {
         const params = new URLSearchParams({
           page: "1",
           limit: "10",
+          estado: "PENDIENTE,ACTIVO",
         });
         const response = await fetch(`/api/prestamos?${params}`);
         const data = await response.json();
@@ -122,7 +153,35 @@ export default function PrestamosPage() {
       }
     }
 
+    async function runHistorial() {
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "10",
+          estado: "DEVUELTO,CANCELADO",
+        });
+        const response = await fetch(`/api/prestamos?${params}`);
+        const data = await response.json();
+
+        if (cancelled) {
+          return;
+        }
+
+        setHistorialPrestamos(data.prestamos);
+        setPaginationHistorial(data.pagination);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error fetching historial prestamos:", error);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingHistorial(false);
+        }
+      }
+    }
+
     void run();
+    void runHistorial();
 
     return () => {
       cancelled = true;
@@ -135,11 +194,18 @@ export default function PrestamosPage() {
     fetchPrestamos(1, value);
   };
 
-  const handleSaved = () => {
+  const handleSaved = (data?: { insufficientStock?: boolean }) => {
     setLoading(true);
+    setLoadingHistorial(true);
     fetchPrestamos(pagination.page, estado);
+    fetchHistorialPrestamos(paginationHistorial.page);
     setModalOpen(false);
     setEditingPrestamo(null);
+    
+    // Mostrar modal de notificación de stock insuficiente si es necesario
+    if (data?.insufficientStock) {
+      setStockNotificationOpen(true);
+    }
   };
 
   function handleEditClick(prestamo: Prestamo) {
@@ -170,9 +236,59 @@ export default function PrestamosPage() {
       }
 
       setLoading(true);
+      setLoadingHistorial(true);
       fetchPrestamos(pagination.page, estado);
+      fetchHistorialPrestamos(paginationHistorial.page);
     } catch (error) {
       console.error("Error deleting prestamo:", error);
+    }
+  }
+
+  async function handleCancelClick(prestamoId: number) {
+    setMenuOpenId(null);
+    setMenuPosition(null);
+
+    const confirmed = window.confirm("¿Cancelar este préstamo?");
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const prestamo = prestamos.find((p) => p.id === prestamoId);
+      if (!prestamo) return;
+
+      const token = window.localStorage.getItem("inventario_token");
+      const response = await fetch(`/api/prestamos`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          id: prestamoId,
+          usuarioId: prestamo.usuarioId,
+          estado: "CANCELADO",
+          fechaSalida: prestamo.fechaSalida,
+          fechaDevolucion: prestamo.fechaDevolucion,
+          notas: prestamo.notas,
+          items: prestamo.detalles.map((d) => ({
+            activoId: d.activo?.id,
+            consumibleId: d.consumible?.id,
+            cantidad: d.cantidad,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo cancelar el préstamo.");
+      }
+
+      setLoading(true);
+      setLoadingHistorial(true);
+      fetchPrestamos(pagination.page, estado);
+      fetchHistorialPrestamos(paginationHistorial.page);
+    } catch (error) {
+      console.error("Error cancelling prestamo:", error);
     }
   };
 
@@ -262,7 +378,7 @@ export default function PrestamosPage() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody divide-y divide-slate-200>
+                  <tbody className="divide-y divide-slate-200">
                     {prestamos.map((prestamo) => {
                       const colors = getEstadoBadge(prestamo.estado);
                       return (
@@ -354,6 +470,201 @@ export default function PrestamosPage() {
                                     {currentRole === "admin" ? (
                                       <button
                                         type="button"
+                                        onClick={() => handleCancelClick(prestamo.id)}
+                                        className="block w-full px-4 py-3 text-left text-sm text-rose-600 transition hover:bg-rose-50"
+                                      >
+                                        Cancelar
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                aria-disabled="true"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 opacity-40 transition-none cursor-not-allowed"
+                              >
+                                <MoreVertical className="h-5 w-5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {/* Paginación */}
+                {pagination.pages > 1 && (
+                  <div className="px-6 py-4 border-t border-slate-200 flex justify-between items-center bg-slate-50">
+                    <button
+                      onClick={() => {
+                        setLoading(true);
+                        fetchPrestamos(pagination.page - 1, estado);
+                      }}
+                      disabled={pagination.page === 1}
+                      className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Anterior
+                    </button>
+                    <span className="text-sm text-slate-600">
+                      Página {pagination.page} de {pagination.pages}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setLoading(true);
+                        fetchPrestamos(pagination.page + 1, estado);
+                      }}
+                      disabled={pagination.page === pagination.pages}
+                      className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Contenedor Historial de Préstamos */}
+      <section className="rounded-3xl bg-white p-8 shadow-lg shadow-slate-200 mt-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Encabezado */}
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-bold text-slate-900">Historial de Préstamos</h1>
+          </div>
+
+          {/* Tabla */}
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            {loadingHistorial ? (
+              <div className="p-8 text-center text-slate-500">
+                Cargando historial de préstamos...
+              </div>
+            ) : historialPrestamos.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">
+                No hay préstamos en el historial
+              </div>
+            ) : (
+              <>
+                <table className="w-full">
+                  <thead className="bg-slate-100 border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
+                        Usuario
+                      </th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
+                        Elementos
+                      </th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
+                        Fecha Salida
+                      </th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
+                        Fecha Devolución
+                      </th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">
+                        Estado
+                      </th>
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700">
+                        Opciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {historialPrestamos.map((prestamo) => {
+                      const colors = getEstadoBadge(prestamo.estado);
+                      return (
+                        <tr
+                          key={prestamo.id}
+                          className="hover:bg-slate-50 transition"
+                        >
+                          <td className="px-6 py-4 text-sm">
+                            <div className="font-semibold text-slate-900">
+                              {prestamo.usuario.name}
+                            </div>
+                            <div className="text-slate-500 text-xs">
+                              {prestamo.usuario.email}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-600">
+                            <div>
+                              {prestamo.detalles.map((detalle) => (
+                                <div key={detalle.id} className="mb-1">
+                                  {detalle.activo ? (
+                                    <span>
+                                      {detalle.activo.name} ({detalle.cantidad})
+                                    </span>
+                                  ) : detalle.consumible ? (
+                                    <span>
+                                      {detalle.consumible.name} x{detalle.cantidad}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-600">
+                            {new Date(prestamo.fechaSalida).toLocaleDateString(
+                              "es-ES"
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-600">
+                            {prestamo.fechaDevolucion
+                              ? new Date(prestamo.fechaDevolucion).toLocaleDateString(
+                                  "es-ES"
+                                )
+                              : "—"}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <span
+                              className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${colors.bg} ${colors.text}`}
+                            >
+                              {prestamo.estado}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            {canManageActions ? (
+                              <div className="relative inline-flex">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    const targetRect = event.currentTarget.getBoundingClientRect();
+                                    setMenuOpenId((current) => {
+                                      const nextMenuId = current === prestamo.id ? null : prestamo.id;
+                                      setMenuPosition(
+                                        nextMenuId === null
+                                          ? null
+                                          : {
+                                              top: targetRect.bottom + 8,
+                                              left: targetRect.right - 144,
+                                            }
+                                      );
+                                      return nextMenuId;
+                                    });
+                                  }}
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                                  aria-label="Abrir opciones"
+                                >
+                                  <MoreVertical className="h-5 w-5" />
+                                </button>
+                                {menuOpenId === prestamo.id ? (
+                                  <div
+                                    className="fixed z-50 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+                                    style={menuPosition ? { top: menuPosition.top, left: menuPosition.left } : undefined}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditClick(prestamo)}
+                                      className="block w-full px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                                    >
+                                      Ver
+                                    </button>
+                                    {currentRole === "admin" ? (
+                                      <button
+                                        type="button"
                                         onClick={() => handleDeleteClick(prestamo.id)}
                                         className="block w-full px-4 py-3 text-left text-sm text-rose-600 transition hover:bg-rose-50"
                                       >
@@ -427,6 +738,13 @@ export default function PrestamosPage() {
         onSaved={handleSaved}
         initialPrestamo={editingPrestamo}
         mode={editingPrestamo ? "edit" : "create"}
+      />
+
+      {/* Modal de Notificación de Stock */}
+      <ModalStockNotification
+        open={stockNotificationOpen}
+        onClose={() => setStockNotificationOpen(false)}
+        onAccept={() => setStockNotificationOpen(false)}
       />
     </>
   );
